@@ -1,0 +1,19 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { demoStories } from "@/lib/demo-stories";
+import { getAdminSupabase } from "@/lib/supabase";
+function statusLabel(status: string) { return status === "developing" ? "Developing" : status === "under_review" ? "Under review" : status === "assessment_published" ? "Assessment published" : "Not verified"; }
+export function generateStaticParams() { return demoStories.map((story) => ({ id: story.id })); }
+export default async function StoryPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  let story = demoStories.find((item) => item.id === id);
+  if (!story) {
+    const supabase = getAdminSupabase();
+    if (supabase) {
+      const { data } = await supabase.from("stories").select("id,title,summary,category,region,source_name,source_url,published_at,retrieved_at,verification_status,is_demo").eq("id", id).eq("is_demo", false).maybeSingle();
+      if (data) story = { id: data.id, title: data.title, summary: data.summary || "", category: data.category || "World", region: data.region || "Global", sourceName: data.source_name || "Source not named", sourceUrl: data.source_url, publishedAt: data.published_at || data.retrieved_at || new Date().toISOString(), updatedAt: data.retrieved_at || new Date().toISOString(), tags: [], verificationStatus: data.verification_status, evidence: [{ label: "Original source", url: data.source_url, kind: "context" }], isDemo: false };
+    }
+  }
+  if (!story) notFound();
+  return <main className="detail-shell"><header className="detail-header"><Link href="/" className="brand"><span className="brand-mark">H</span><span>HAQ<span className="brand-dot">.</span>NEWS<small>TRUTH NEEDS EVIDENCE</small></span></Link><Link href="/" className="back-link">← Back to briefing</Link></header><div className="detail-content">{story.isDemo && <div className="demo-notice">DEMO STORY · FICTIONAL EXAMPLE, NOT CURRENT NEWS</div>}<div className="section-kicker">{story.category.toUpperCase()} / {story.region.toUpperCase()}</div><h1>{story.title}</h1><p className="detail-summary">{story.summary}</p><div className="detail-meta"><span>Source: {story.sourceName}</span><span>Published: {new Date(story.publishedAt).toLocaleString()}</span><span className="status status-unverified">● {statusLabel(story.verificationStatus)}</span></div><section className="evidence-box"><div className="section-kicker">EVIDENCE RECORD</div><h2>What this page can establish</h2><p>{story.isDemo ? "This is sample content for testing the HAQ.NEWS interface. It has not been fact-checked and does not describe a real news event." : "This story was ingested from a configured source. The presence of a source link does not mean the story or every claim in it has been independently verified."}</p><div className="evidence-list">{story.evidence.map((e, i) => <a href={e.url} target="_blank" rel="noopener noreferrer" key={e.url}><span className="evidence-number">0{i + 1}</span><span><strong>{e.label}</strong><small>{e.kind === "primary" ? "Primary source" : e.kind === "reporting" ? "News reporting" : "Context"}</small></span><span>↗</span></a>)}</div><p className="evidence-warning">A link is not proof of verification. {story.isDemo ? "In this demo, example.com URLs are placeholders and must not be treated as evidence." : "The original publisher remains responsible for its reporting; HAQ.NEWS has not independently verified this claim."}</p></section><section className="detail-note"><h2>Verification status</h2><p><strong>{statusLabel(story.verificationStatus)}</strong> — no human-approved fact-check assessment exists for this demonstration story. HAQ.NEWS will not display a verified verdict until evidence has been inspected and the required review has been completed.</p></section><Link href="/" className="back-button">← Return to the news feed</Link></div></main>;
+}
